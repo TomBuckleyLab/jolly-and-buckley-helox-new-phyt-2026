@@ -2,22 +2,19 @@
 #####
 ##### sample code to calculate intercellular relative humidity from
 #####  gas exchange data collected using the helox compensation method,
-#####  as described in Jolly and Buckley (2026) New Phytologist
+#####  as described in Jolly and Buckley (2026) New Phytologist,
+#####  "Advancing the helox compensation method to estimate intercellular humidity in leaves of diverse species"
 #####
-##### a sample data file (xxxx) is included for demonstration purposes
+##### a sample data file ("jolly and buckley (helox) sample data.csv") is included for demonstration purposes
 #####
 
-
-### swvmf():
-###   -function to calculate saturation water vapor mole fraction (mol/mol) from temperature (T, deg C)
-swvmf <- function(T) {0.0061078*exp(17.27*T/(237.3 + T))}
 
 ### try_gs():
 ###
 ###  -takes input values of gasx variables
-###    (En, Eh, gb1, gc1, stomatal ratio, wa and ws in helox and nitox)
 ###    (2nd arg is input vector iv = c(En, Eh, gb1, gc1, sr, wa, waprime, ws, wsprime))
-###    as well as an 'input' estimate of stomatal conductance (gsin, first arg; nb this is one-sided abaxial gs)
+###      (E in nitox, helox; one-sided gbw and gcw; stomatal ratio; ambient water vapor mole fraction in nitox, helox; saturated values in nitox, helox)
+###    as well as an 'input' estimate of stomatal conductance (gsin, first arg; this is one-sided abaxial gs)
 ###    and uses them to compute intercellular relative humidity (h),
 ###    then recalculates stomatal conductance ('output', gsout) from h,
 ###    and returns a vector containing 6 items:
@@ -32,15 +29,15 @@ swvmf <- function(T) {0.0061078*exp(17.27*T/(237.3 + T))}
 ###
 try_gs <- function(gsin, iv, phiprime_phi = 1/2.33, gammaprime_gamma = 1.47) {
   ## extract inputs from input vector
-  En = iv[1]
-  Eh = iv[2]
-  gb1 = iv[3]
-  gc1 = iv[4]
-  sr = iv[5]
-  wa = iv[6]
-  waprime = iv[7]
-  ws = iv[8]
-  wsprime = iv[9]
+  En = iv[1] ## E in nitox
+  Eh = iv[2] ## E in helox
+  gb1 = iv[3] ## one-sided gbw in nitox
+  gc1 = iv[4] ## one-sided gcw (cuticular)
+  sr = iv[5] ## stomatal ratio (adax/abax gsw)
+  wa = iv[6] ## ambient water vapor mole fraction in nitox
+  waprime = iv[7] ## same in helox
+  ws = iv[8] ## saturated water vapor mole fraction in nitox
+  wsprime = iv[9] ## same in helox
   
   ## estimate phi and gamma from gsin
   phi = gc1/gsin
@@ -108,26 +105,26 @@ calculate_gs <- function(gt, gb1, gc1, sr) {
 ###
 
 ### set working directory
-#setwd("...")
-x <- read.csv("sample data.csv")
+##setwd("...")
+x <- read.csv("jolly and buckley (helox) sample data.csv")
 
 ### input file has the following structure:
-### data rows alternate between nitox and helox (e.g., row 1 = nitox, row 2 = helox)
-### file has the following necessary columns:
+###  (0) first row contains column names as given below
+###  (1) data rows must alternate between nitox and helox (e.g., row 1 = nitox, row 2 = helox)
+###  (2) file must contain at least the following columns:
 ###
-### t - time of day (24-hour decimal hour) 
 ### E - leaf transpiration rate in mol m-2 s-1
 ### H2OS - sample stream water vapor mole fraction in mmol/mol
 ### TleafC - leaf temperature in degrees C
-### gbw - two-sided (whole leaf) boundary layer conductance to water vapor, mol m-2 s-1
-### gc - one-sided cuticular conductance (mol m-2 s-1)
+### gbw - two-sided (whole leaf) boundary layer conductance to water vapor in mol m-2 s-1
+### gc - one-sided cuticular conductance in mol m-2 s-1
 ### stomatal_ratio - ratio of adaxial to abaxial stomatal conductances
 
 
 ############
 ### make dataframe to contain processed results, with one row per N2-He switch
-y <- data.frame(matrix(nrow=nrow(x)/2, ncol=24))
-colnames(y) <- c("t", "gb2", "gc", "sr", 
+y <- data.frame(matrix(nrow=nrow(x)/2, ncol=23))
+colnames(y) <- c("gb2", "gc", "sr", 
                  "wsn", "wsh", "win", "wih", "wan", "wah",
                  "En", "Eh", "Tn", "Th", 
                  "gtn.est", "gsn.est", "gsn.corr", 
@@ -141,11 +138,11 @@ for(p in 1:(nrow(x)/2)) {
   En = x$E[n]; Eh = x$E[h] ## transpiration rates in nitox and helox
   wan = 0.001*x$H2OS[n]; wah = 0.001*x$H2OS[h] ## sample (ambient) water vapor mole fractions 
   Tn = x$TleafC[n]; Th = x$TleafC[h] ## leaf temperatures
-  wsn <- 0.0061078*exp(17.27*Tn/(237.3 + Tn)) ## saturated water vapor mole fractions
-  wsh <- 0.0061078*exp(17.27*Th/(237.3 + Th))
-  gb=x$gbw[n]
-  gc=x$gc[n]
-  sr=x$stomatal_ratio[n]
+  wsn <- 0.0061078*exp(17.27*Tn/(237.3 + Tn)) ## saturated water vapor mole fraction in nitox
+  wsh <- 0.0061078*exp(17.27*Th/(237.3 + Th)) ## same in helox
+  gb = x$gbw[n]
+  gc = x$gc[n]
+  sr = x$stomatal_ratio[n]
   gtn.est <- En*(1 - 0.5*(wsn + wan))/(wsn - wan) ## naive (saturated) estimation of total leaf conductance to water vapor in nitox
   gsn.est <- calculate_gs(gtn.est, gb/2, gc, sr) ## naive estimate of single-surface gsw in nitox
 
@@ -163,7 +160,6 @@ for(p in 1:(nrow(x)/2)) {
   eta <- rvec[6] ## ratio of gtw in helox to that in nitox
   
   ## record everything in the dataframe y
-  y$t[p] <- x$t[n]
   y$gb2[p] <- gb
   y$gc[p] <- gc
   y$sr[p] <- sr
